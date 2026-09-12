@@ -62,6 +62,8 @@ export function PaymentRequest({ address, amount, memo, message, label }: Props)
 
       {qr && (
         <div className="flex justify-center">
+          {/* QR is a generated data URL — next/image is not appropriate here */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={qr}
             alt="Zcash payment QR code"
