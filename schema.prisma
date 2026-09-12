@@ -1,0 +1,66 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// For production, switch to:
+// provider = "postgresql"
+// url      = env("DATABASE_URL")
+
+model User {
+  id            String        @id @default(cuid())
+  email         String        @unique
+  passwordHash  String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  paymentPages  PaymentPage[]
+}
+
+model PaymentPage {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  username       String    @unique
+  displayName    String
+  avatarUrl      String?
+  bio            String?
+  zcashAddress   String
+  paymentButtons Json      // e.g. [{ amount: 0.01, label: "0.01 ZEC" }, ...]
+  socialLinks    Json?     // e.g. { twitter: "...", github: "..." }
+  isPublished    Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  invoices       Invoice[]
+
+  @@index([username])
+}
+
+model Invoice {
+  id             String      @id @default(cuid())
+  publicId       String      @unique // short public id for URLs
+  paymentPageId  String
+  paymentPage    PaymentPage @relation(fields: [paymentPageId], references: [id], onDelete: Cascade)
+  title          String
+  description    String?
+  amount         Float
+  currency       String      @default("ZEC")
+  memo           String?
+  status         String      @default("pending") // pending | awaiting_verification | paid | expired | cancelled
+  expiresAt      DateTime?
+  createdAt      DateTime    @default(now())
+  paidAt         DateTime?
+  transactionId  String?
+  // Note: For shielded payments, reliable automatic verification
+  // requires viewing keys or external indexers. MVP leaves status
+  // as pending / awaiting_verification unless a reliable signal exists.
+
+  @@index([publicId])
+  @@index([paymentPageId])
+}
