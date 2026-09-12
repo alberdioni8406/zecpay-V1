@@ -1,11 +1,10 @@
-
 import { randomBytes } from "crypto";
 import { prisma } from "./db";
-import type { Invoice, InvoiceStatus, PaymentPage, SocialLinks, User, AddressSlot } from "./types";
+import type { AddressSlot, Invoice, InvoiceStatus, PaymentPage, SocialLinks } from "./types";
 
 export function newId(prefix = ""): string {
   const id = randomBytes(8).toString("hex");
-  return prefix ? `\( {prefix}_ \){id}` : id;
+  return prefix ? `${prefix}_${id}` : id;
 }
 
 export function newPublicId(): string {
@@ -18,7 +17,6 @@ export function newPublicId(): string {
 
 function mapPage(row: {
   id: string;
-  userId: string | null;
   manageTokenHash: string;
   username: string;
   displayName: string;
@@ -77,64 +75,11 @@ function mapInvoice(row: {
     expiresAt: row.expiresAt ? row.expiresAt.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
     paidAt: row.paidAt ? row.paidAt.toISOString() : null,
-    transactionId: row.transactionId ?? null,
-  };
-}
-
-function mapUser(row: {
-  id: string;
-  email: string;
-  passwordHash: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}): User {
-  return {
-    id: row.id,
-    email: row.email,
-    passwordHash: row.passwordHash ?? "",
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
+    transactionId: row.transactionId,
   };
 }
 
 export const store = {
-  // --- Users (legacy login; optional) ---
-  async getUserById(id: string): Promise<User | undefined> {
-    const row = await prisma.user.findUnique({ where: { id } });
-    return row ? mapUser(row) : undefined;
-  },
-
-  async getUserByEmail(email: string): Promise<User | undefined> {
-    const row = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
-    });
-    return row ? mapUser(row) : undefined;
-  },
-
-  async createUser(user: User): Promise<User> {
-    try {
-      const row = await prisma.user.create({
-        data: {
-          id: user.id,
-          email: user.email.toLowerCase(),
-          passwordHash: user.passwordHash,
-        },
-      });
-      return mapUser(row);
-    } catch {
-      throw new Error("EMAIL_TAKEN");
-    }
-  },
-
-  // --- Pages ---
-  async getPagesByUser(userId: string): Promise<PaymentPage[]> {
-    const rows = await prisma.paymentPage.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-    });
-    return rows.map(mapPage);
-  },
-
   async getPageByUsername(username: string): Promise<PaymentPage | undefined> {
     const row = await prisma.paymentPage.findUnique({
       where: { username: username.toLowerCase() },
@@ -155,75 +100,65 @@ export const store = {
   },
 
   async createPage(page: PaymentPage): Promise<PaymentPage> {
-    try {
-      const row = await prisma.paymentPage.create({
-        data: {
-          id: page.id,
-          manageTokenHash: page.manageTokenHash,
-          username: page.username.toLowerCase(),
-          displayName: page.displayName,
-          avatarUrl: page.avatarUrl ?? null,
-          bio: page.bio ?? null,
-          zcashAddress: page.zcashAddress,
-          addresses: page.addresses ?? undefined,
-          paymentButtons: page.paymentButtons,
-          socialLinks: page.socialLinks ?? undefined,
-          isPublished: page.isPublished,
-        },
-      });
-      return mapPage(row);
-    } catch (err: unknown) {
-      const code = (err as { code?: string })?.code;
-      if (code === "P2002") throw new Error("USERNAME_TAKEN");
-      throw err;
-    }
+    const existing = await prisma.paymentPage.findUnique({
+      where: { username: page.username.toLowerCase() },
+    });
+    if (existing) throw new Error("USERNAME_TAKEN");
+
+    const row = await prisma.paymentPage.create({
+      data: {
+        id: page.id,
+        manageTokenHash: page.manageTokenHash,
+        username: page.username.toLowerCase(),
+        displayName: page.displayName,
+        avatarUrl: page.avatarUrl ?? null,
+        bio: page.bio ?? null,
+        zcashAddress: page.zcashAddress,
+        addresses: page.addresses ?? undefined,
+        paymentButtons: page.paymentButtons,
+        socialLinks: page.socialLinks ?? undefined,
+        isPublished: page.isPublished,
+      },
+    });
+    return mapPage(row);
   },
 
   async updatePage(id: string, patch: Partial<PaymentPage>): Promise<PaymentPage> {
+    if (patch.username) {
+      const clash = await prisma.paymentPage.findFirst({
+        where: { username: patch.username.toLowerCase(), NOT: { id } },
+      });
+      if (clash) throw new Error("USERNAME_TAKEN");
+    }
+
     try {
       const row = await prisma.paymentPage.update({
         where: { id },
         data: {
-          ...(patch.username !== undefined && {
-            username: patch.username.toLowerCase(),
-          }),
-          ...(patch.displayName !== undefined && {
-            displayName: patch.displayName,
-          }),
-          ...(patch.avatarUrl !== undefined && {
-            avatarUrl: patch.avatarUrl || null,
-          }),
-          ...(patch.bio !== undefined && { bio: patch.bio || null }),
-          ...(patch.zcashAddress !== undefined && {
-            zcashAddress: patch.zcashAddress,
-          }),
-          ...(patch.addresses !== undefined && {
-            addresses: patch.addresses ?? undefined,
-          }),
-          ...(patch.paymentButtons !== undefined && {
-            paymentButtons: patch.paymentButtons,
-          }),
-          ...(patch.socialLinks !== undefined && {
-            socialLinks: patch.socialLinks ?? undefined,
-          }),
-          ...(patch.isPublished !== undefined && {
-            isPublished: patch.isPublished,
-          }),
-          ...(patch.manageTokenHash !== undefined && {
-            manageTokenHash: patch.manageTokenHash,
-          }),
+          ...(patch.username !== undefined
+            ? { username: patch.username.toLowerCase() }
+            : {}),
+          ...(patch.displayName !== undefined ? { displayName: patch.displayName } : {}),
+          ...(patch.bio !== undefined ? { bio: patch.bio || null } : {}),
+          ...(patch.avatarUrl !== undefined ? { avatarUrl: patch.avatarUrl || null } : {}),
+          ...(patch.zcashAddress !== undefined ? { zcashAddress: patch.zcashAddress } : {}),
+          ...(patch.addresses !== undefined ? { addresses: patch.addresses } : {}),
+          ...(patch.paymentButtons !== undefined
+            ? { paymentButtons: patch.paymentButtons }
+            : {}),
+          ...(patch.socialLinks !== undefined ? { socialLinks: patch.socialLinks } : {}),
+          ...(patch.isPublished !== undefined ? { isPublished: patch.isPublished } : {}),
+          ...(patch.manageTokenHash !== undefined
+            ? { manageTokenHash: patch.manageTokenHash }
+            : {}),
         },
       });
       return mapPage(row);
-    } catch (err: unknown) {
-      const code = (err as { code?: string })?.code;
-      if (code === "P2025") throw new Error("NOT_FOUND");
-      if (code === "P2002") throw new Error("USERNAME_TAKEN");
-      throw err;
+    } catch {
+      throw new Error("NOT_FOUND");
     }
   },
 
-  // --- Invoices ---
   async getInvoiceByPublicId(publicId: string): Promise<Invoice | undefined> {
     const row = await prisma.invoice.findUnique({ where: { publicId } });
     return row ? mapInvoice(row) : undefined;
@@ -246,7 +181,7 @@ export const store = {
         title: invoice.title,
         description: invoice.description ?? null,
         amount: invoice.amount,
-        currency: invoice.currency || "ZEC",
+        currency: "ZEC",
         memo: invoice.memo ?? null,
         status: invoice.status,
         expiresAt: invoice.expiresAt ? new Date(invoice.expiresAt) : null,
@@ -262,29 +197,22 @@ export const store = {
       const row = await prisma.invoice.update({
         where: { id },
         data: {
-          ...(patch.title !== undefined && { title: patch.title }),
-          ...(patch.description !== undefined && {
-            description: patch.description ?? null,
-          }),
-          ...(patch.amount !== undefined && { amount: patch.amount }),
-          ...(patch.memo !== undefined && { memo: patch.memo ?? null }),
-          ...(patch.status !== undefined && { status: patch.status }),
-          ...(patch.expiresAt !== undefined && {
-            expiresAt: patch.expiresAt ? new Date(patch.expiresAt) : null,
-          }),
-          ...(patch.paidAt !== undefined && {
-            paidAt: patch.paidAt ? new Date(patch.paidAt) : null,
-          }),
-          ...(patch.transactionId !== undefined && {
-            transactionId: patch.transactionId ?? null,
-          }),
+          ...(patch.status !== undefined ? { status: patch.status } : {}),
+          ...(patch.transactionId !== undefined
+            ? { transactionId: patch.transactionId }
+            : {}),
+          ...(patch.paidAt !== undefined
+            ? { paidAt: patch.paidAt ? new Date(patch.paidAt) : null }
+            : {}),
+          ...(patch.title !== undefined ? { title: patch.title } : {}),
+          ...(patch.description !== undefined
+            ? { description: patch.description ?? null }
+            : {}),
         },
       });
       return mapInvoice(row);
-    } catch (err: unknown) {
-      const code = (err as { code?: string })?.code;
-      if (code === "P2025") throw new Error("NOT_FOUND");
-      throw err;
+    } catch {
+      throw new Error("NOT_FOUND");
     }
   },
 };
