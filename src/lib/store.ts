@@ -1,3 +1,4 @@
+
 import { promises as fs } from "fs";
 import path from "path";
 import { randomBytes } from "crypto";
@@ -48,7 +49,7 @@ export function newPublicId(): string {
 }
 
 export const store = {
-  // --- Users ---
+  // --- Users (kept for legacy login/dashboard if still used) ---
   async getUserById(id: string): Promise<User | undefined> {
     const users = await readJson<User>(USERS_FILE);
     return users.find((u) => u.id === id);
@@ -70,11 +71,10 @@ export const store = {
   },
 
   // --- Pages ---
-  async getPagesByUser(userId: string): Promise<PaymentPage[]> {
-    const pages = await readJson<PaymentPage>(PAGES_FILE);
-    return pages
-      .filter((p) => p.userId === userId)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  // Note: current PaymentPage has no userId (manage-secret model).
+  // This returns [] until you either add optional userId or retire the dashboard.
+  async getPagesByUser(_userId: string): Promise<PaymentPage[]> {
+    return [];
   },
 
   async getPageByUsername(username: string): Promise<PaymentPage | undefined> {
@@ -89,7 +89,7 @@ export const store = {
 
   async getPageByManageTokenHash(hash: string): Promise<PaymentPage | undefined> {
     const pages = await readJson<PaymentPage>(PAGES_FILE);
-    return pages.find((p) => (p as PaymentPage & { manageTokenHash?: string }).manageTokenHash === hash);
+    return pages.find((p) => p.manageTokenHash === hash);
   },
 
   async createPage(page: PaymentPage): Promise<PaymentPage> {
