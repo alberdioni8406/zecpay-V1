@@ -1,22 +1,15 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { randomBytes } from "crypto";
-import type { Invoice, PaymentPage, User } from "./types";
+import type { Invoice, PaymentPage } from "./types";
 
 const DATA_DIR = path.join(process.cwd(), "data");
-const USERS_FILE = path.join(DATA_DIR, "users.json");
 const PAGES_FILE = path.join(DATA_DIR, "pages.json");
 const INVOICES_FILE = path.join(DATA_DIR, "invoices.json");
 
-type Tables = {
-  users: User[];
-  pages: PaymentPage[];
-  invoices: Invoice[];
-};
-
 async function ensureFiles() {
   await fs.mkdir(DATA_DIR, { recursive: true });
-  for (const file of [USERS_FILE, PAGES_FILE, INVOICES_FILE]) {
+  for (const file of [PAGES_FILE, INVOICES_FILE]) {
     try {
       await fs.access(file);
     } catch {
@@ -54,26 +47,6 @@ export function newPublicId(): string {
 }
 
 export const store = {
-  async getUserByEmail(email: string): Promise<User | undefined> {
-    const users = await readJson<User>(USERS_FILE);
-    return users.find((u) => u.email === email.toLowerCase());
-  },
-
-  async getUserById(id: string): Promise<User | undefined> {
-    const users = await readJson<User>(USERS_FILE);
-    return users.find((u) => u.id === id);
-  },
-
-  async createUser(user: User): Promise<User> {
-    const users = await readJson<User>(USERS_FILE);
-    if (users.some((u) => u.email === user.email)) {
-      throw new Error("EMAIL_TAKEN");
-    }
-    users.push(user);
-    await writeJson(USERS_FILE, users);
-    return user;
-  },
-
   async getPageByUsername(username: string): Promise<PaymentPage | undefined> {
     const pages = await readJson<PaymentPage>(PAGES_FILE);
     return pages.find((p) => p.username === username.toLowerCase());
@@ -84,9 +57,9 @@ export const store = {
     return pages.find((p) => p.id === id);
   },
 
-  async getPagesByUser(userId: string): Promise<PaymentPage[]> {
+  async getPageByManageTokenHash(hash: string): Promise<PaymentPage | undefined> {
     const pages = await readJson<PaymentPage>(PAGES_FILE);
-    return pages.filter((p) => p.userId === userId);
+    return pages.find((p) => p.manageTokenHash === hash);
   },
 
   async createPage(page: PaymentPage): Promise<PaymentPage> {
@@ -142,5 +115,3 @@ export const store = {
     return invoices[idx];
   },
 };
-
-export type { Tables };

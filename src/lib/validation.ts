@@ -18,21 +18,17 @@ export const zcashAddressSchema = z
   .string()
   .trim()
   .min(1, "Zcash address is required")
-  .refine(isValidZcashAddress, "Enter a valid Zcash address (transparent, Sapling, or Unified)");
+  .refine(isValidZcashAddress, "Enter a valid Zcash address (Unified, Sapling, or transparent)");
 
 export const amountSchema = z
   .number()
   .positive("Amount must be greater than 0")
   .max(21_000_000, "Amount exceeds the ZEC supply cap");
 
-export const registerSchema = z.object({
-  email: z.string().trim().toLowerCase().email(),
-  password: z.string().min(8, "Password must be at least 8 characters").max(128),
-});
-
-export const loginSchema = z.object({
-  email: z.string().trim().toLowerCase().email(),
-  password: z.string().min(1),
+export const addressSlotSchema = z.object({
+  type: z.enum(["unified", "orchard", "sapling", "transparent"]),
+  address: zcashAddressSchema,
+  label: z.string().max(40).optional(),
 });
 
 export const socialLinksSchema = z
@@ -50,6 +46,7 @@ export const paymentPageInputSchema = z.object({
   bio: z.string().trim().max(280).optional().or(z.literal("")),
   avatarUrl: z.string().url().optional().or(z.literal("")),
   zcashAddress: zcashAddressSchema,
+  addresses: z.array(addressSlotSchema).max(6).optional(),
   paymentButtons: z.array(amountSchema).min(1).max(8),
   socialLinks: socialLinksSchema,
   isPublished: z.boolean().optional(),
@@ -62,4 +59,5 @@ export const invoiceInputSchema = z.object({
   amount: amountSchema,
   memo: z.string().trim().max(200).optional().or(z.literal("")),
   expiresAt: z.string().datetime().optional().nullable(),
+  manageSecret: z.string().min(16),
 });

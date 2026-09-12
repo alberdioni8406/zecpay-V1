@@ -5,11 +5,18 @@ export function getAppUrl(): string {
   return raw.replace(/\/$/, "");
 }
 
+/** Optional project support address — never required for the product to work. */
+export function getSupportZecAddress(): string | null {
+  const a = process.env.NEXT_PUBLIC_SUPPORT_ZEC_ADDRESS?.trim();
+  return a && a.length > 10 ? a : null;
+}
+
 export const RESERVED_USERNAMES = new Set([
   "create",
   "login",
   "register",
   "dashboard",
+  "manage",
   "i",
   "api",
   "about",
@@ -20,6 +27,8 @@ export const RESERVED_USERNAMES = new Set([
   "account",
   "invoices",
   "pay",
+  "support",
+  "privacy",
   "static",
   "favicon.ico",
 ]);

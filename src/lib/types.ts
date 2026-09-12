@@ -5,6 +5,7 @@ export type SocialLinks = {
   nostr?: string;
 };
 
+/** Optional legacy user type — no longer required for page creation. */
 export type User = {
   id: string;
   email: string;
@@ -13,14 +14,24 @@ export type User = {
   updatedAt: string;
 };
 
+export type AddressSlot = {
+  type: "unified" | "orchard" | "sapling" | "transparent";
+  address: string;
+  label?: string;
+};
+
 export type PaymentPage = {
   id: string;
-  userId: string;
+  /** SHA-256 of the one-time manage secret. Never store the raw secret. */
+  manageTokenHash: string;
   username: string;
   displayName: string;
   avatarUrl?: string;
   bio?: string;
+  /** Preferred receiving address (usually Unified). */
   zcashAddress: string;
+  /** Optional extra receivers: Orchard, Sapling, transparent, etc. */
+  addresses?: AddressSlot[];
   paymentButtons: number[];
   socialLinks?: SocialLinks;
   isPublished: boolean;
