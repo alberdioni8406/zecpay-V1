@@ -144,9 +144,9 @@ export default function HomePage() {
         <div className="mx-auto max-w-5xl px-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted">
           <p>ZecPay — working name. Domain and branding TBD.</p>
           <div className="flex items-center gap-4 font-mono text-xs">
-            <a href="/privacy" className="hover:text-foreground">
+            <Link href="/privacy" className="hover:text-foreground">
               Privacy
-            </a>
+            </Link>
             <span>Non-custodial · ZIP-321</span>
           </div>
         </div>
