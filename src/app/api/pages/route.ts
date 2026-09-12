@@ -1,23 +1,14 @@
 import { NextResponse } from "next/server";
-import { getSessionUser } from "@/lib/auth";
 import { paymentPageInputSchema } from "@/lib/validation";
 import { newId, store } from "@/lib/store";
 import type { PaymentPage } from "@/lib/types";
 import { clientKey, rateLimit } from "@/lib/rateLimit";
-
-export async function GET() {
-  const user = await getSessionUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const pages = await store.getPagesByUser(user.id);
-  return NextResponse.json(pages);
-}
+import { generateManageSecret, hashManageSecret } from "@/lib/tokens";
 
 export async function POST(req: Request) {
-  if (!rateLimit(clientKey(req, "pages"), 30)) {
+  if (!rateLimit(clientKey(req, "pages"), 20)) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
-  const user = await getSessionUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
   const parsed = paymentPageInputSchema.safeParse(body);
@@ -33,15 +24,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Username is taken" }, { status: 409 });
   }
 
+  const manageSecret = generateManageSecret();
   const now = new Date().toISOString();
   const page: PaymentPage = {
     id: newId("pg"),
-    userId: user.id,
+    manageTokenHash: hashManageSecret(manageSecret),
     username: parsed.data.username,
     displayName: parsed.data.displayName,
     bio: parsed.data.bio || undefined,
     avatarUrl: parsed.data.avatarUrl || undefined,
     zcashAddress: parsed.data.zcashAddress.trim(),
+    addresses: parsed.data.addresses,
     paymentButtons: parsed.data.paymentButtons,
     socialLinks: parsed.data.socialLinks,
     isPublished: parsed.data.isPublished ?? true,
@@ -51,7 +44,17 @@ export async function POST(req: Request) {
 
   try {
     const created = await store.createPage(page);
-    return NextResponse.json(created, { status: 201 });
+    return NextResponse.json(
+      {
+        id: created.id,
+        username: created.username,
+        displayName: created.displayName,
+        isPublished: created.isPublished,
+        manageSecret,
+        managePath: `/manage?secret=${encodeURIComponent(manageSecret)}`,
+      },
+      { status: 201 }
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : "";
     if (message === "USERNAME_TAKEN") {
