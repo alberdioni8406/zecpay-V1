@@ -1,15 +1,16 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { randomBytes } from "crypto";
-import type { Invoice, PaymentPage } from "./types";
+import type { Invoice, PaymentPage, User } from "./types";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const PAGES_FILE = path.join(DATA_DIR, "pages.json");
 const INVOICES_FILE = path.join(DATA_DIR, "invoices.json");
+const USERS_FILE = path.join(DATA_DIR, "users.json");
 
 async function ensureFiles() {
   await fs.mkdir(DATA_DIR, { recursive: true });
-  for (const file of [PAGES_FILE, INVOICES_FILE]) {
+  for (const file of [PAGES_FILE, INVOICES_FILE, USERS_FILE]) {
     try {
       await fs.access(file);
     } catch {
@@ -35,7 +36,7 @@ async function writeJson<T>(file: string, data: T[]) {
 
 export function newId(prefix = ""): string {
   const id = randomBytes(8).toString("hex");
-  return prefix ? `${prefix}_${id}` : id;
+  return prefix ? `\( {prefix}_ \){id}` : id;
 }
 
 export function newPublicId(): string {
@@ -47,6 +48,35 @@ export function newPublicId(): string {
 }
 
 export const store = {
+  // --- Users ---
+  async getUserById(id: string): Promise<User | undefined> {
+    const users = await readJson<User>(USERS_FILE);
+    return users.find((u) => u.id === id);
+  },
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const users = await readJson<User>(USERS_FILE);
+    return users.find((u) => u.email === email.toLowerCase());
+  },
+
+  async createUser(user: User): Promise<User> {
+    const users = await readJson<User>(USERS_FILE);
+    if (users.some((u) => u.email === user.email.toLowerCase())) {
+      throw new Error("EMAIL_TAKEN");
+    }
+    users.push(user);
+    await writeJson(USERS_FILE, users);
+    return user;
+  },
+
+  // --- Pages ---
+  async getPagesByUser(userId: string): Promise<PaymentPage[]> {
+    const pages = await readJson<PaymentPage>(PAGES_FILE);
+    return pages
+      .filter((p) => p.userId === userId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  },
+
   async getPageByUsername(username: string): Promise<PaymentPage | undefined> {
     const pages = await readJson<PaymentPage>(PAGES_FILE);
     return pages.find((p) => p.username === username.toLowerCase());
@@ -59,7 +89,7 @@ export const store = {
 
   async getPageByManageTokenHash(hash: string): Promise<PaymentPage | undefined> {
     const pages = await readJson<PaymentPage>(PAGES_FILE);
-    return pages.find((p) => p.manageTokenHash === hash);
+    return pages.find((p) => (p as PaymentPage & { manageTokenHash?: string }).manageTokenHash === hash);
   },
 
   async createPage(page: PaymentPage): Promise<PaymentPage> {
@@ -87,6 +117,7 @@ export const store = {
     return pages[idx];
   },
 
+  // --- Invoices ---
   async getInvoiceByPublicId(publicId: string): Promise<Invoice | undefined> {
     const invoices = await readJson<Invoice>(INVOICES_FILE);
     return invoices.find((i) => i.publicId === publicId);
