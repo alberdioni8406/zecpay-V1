@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server";
-import { getSessionUser } from "@/lib/auth";
 import { invoiceInputSchema } from "@/lib/validation";
 import { newId, newPublicId, store } from "@/lib/store";
 import type { Invoice } from "@/lib/types";
+import { verifyManageSecret } from "@/lib/tokens";
 
 export async function POST(req: Request) {
-  const user = await getSessionUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const body = await req.json();
   const parsed = invoiceInputSchema.safeParse(body);
   if (!parsed.success) {
@@ -18,8 +15,12 @@ export async function POST(req: Request) {
   }
 
   const page = await store.getPageById(parsed.data.paymentPageId);
-  if (!page || page.userId !== user.id) {
+  if (!page) {
     return NextResponse.json({ error: "Payment page not found" }, { status: 404 });
+  }
+
+  if (!verifyManageSecret(parsed.data.manageSecret, page.manageTokenHash)) {
+    return NextResponse.json({ error: "Invalid manage secret" }, { status: 401 });
   }
 
   const now = new Date().toISOString();
