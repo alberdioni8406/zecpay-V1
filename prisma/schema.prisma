@@ -1,4 +1,3 @@
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -19,19 +18,15 @@ model User {
 
 model PaymentPage {
   id              String    @id @default(cuid())
-  /// Optional — ghost/manage-secret pages may have no user
   userId          String?
   user            User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
-  /// SHA-256 of the one-time manage secret (never store the raw secret)
   manageTokenHash String
   username        String    @unique
   displayName     String
   avatarUrl       String?
   bio             String?
   zcashAddress    String
-  /// e.g. [{ type: "orchard", address: "..." }]
   addresses       Json?
-  /// e.g. [0.01, 0.1, 1]
   paymentButtons  Json
   socialLinks     Json?
   isPublished     Boolean   @default(true)
