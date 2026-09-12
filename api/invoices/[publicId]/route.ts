@@ -1,6 +1,19 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { store } from "@/lib/store";
+import type { InvoiceStatus } from "@/lib/types";
+
+const ALLOWED_STATUSES: InvoiceStatus[] = [
+  "pending",
+  "awaiting_verification",
+  "paid",
+  "expired",
+  "cancelled",
+];
+
+function isInvoiceStatus(value: unknown): value is InvoiceStatus {
+  return typeof value === "string" && (ALLOWED_STATUSES as string[]).includes(value);
+}
 
 export async function GET(
   _req: Request,
@@ -30,12 +43,16 @@ export async function PATCH(
   }
 
   const body = await req.json();
-  const status = body.status as string | undefined;
+  const statusRaw = body.status as unknown;
   const transactionId = body.transactionId as string | undefined;
 
-  if (status && !["pending", "awaiting_verification", "paid", "expired", "cancelled"].includes(status)) {
+  if (statusRaw !== undefined && !isInvoiceStatus(statusRaw)) {
     return NextResponse.json({ error: "Invalid status" }, { status: 400 });
   }
+
+  const status: InvoiceStatus | undefined = isInvoiceStatus(statusRaw)
+    ? statusRaw
+    : undefined;
 
   // Paid only allowed when operator explicitly confirms with a tx id note.
   // This is not blockchain proof — it records an operator decision.
